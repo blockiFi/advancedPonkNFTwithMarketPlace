@@ -384,7 +384,7 @@ interface IERC20 {
 pragma solidity ^0.8.2;
 
  contract shitPunkMarket is IERC721Receiver , Ownable {
- IERC721 NFTtoken;
+ IERC721 shitPonkNft;
     struct bid{
         address payable bidder;
         bool isActive;
@@ -405,7 +405,7 @@ pragma solidity ^0.8.2;
     
     uint256[] public itemsForSaleList;
     mapping(uint256 => ItemForSale) public itemsForSale;
-    mapping( address => mapping(uint256 => bool)) public isActiveOnSale;
+    mapping( uint256 => bool) public isActiveOnSale;
     // percentage of sales
     uint256 fees;
     address payable public feeRemitanceAddress;
@@ -426,11 +426,11 @@ pragma solidity ^0.8.2;
   
   
     modifier activSales (uint256 saleID){
-         require(isActiveOnSale[itemsForSale[saleID].tokenAddress][itemsForSale[saleID].tokenID]  && !itemsForSale[saleID].isSold  , "Item not in sale");
+         require(isActiveOnSale[itemsForSale[saleID].tokenID]  && !itemsForSale[saleID].isSold  , "Item not in sale");
          _;  
     }
-    constructor(IERC721 shitPonkNft)  {
-          NFTtoken =  shitPonkNft;
+    constructor(IERC721 _shitPonkNft)  {
+          shitPonkNft =  _shitPonkNft;
         feeRemitanceAddress = payable(msg.sender);
     }
     // help function that enables this contract recieve ERC721 tokens/nft
@@ -442,10 +442,10 @@ pragma solidity ^0.8.2;
         uint256 _tokenID ,  
         uint256 _askingPrice , 
         bool _auctioned) public  returns (uint256) {
-         require(IERC721(_tokenAddress).ownerOf(_tokenID) == _msgSender() , "not Token Owner");
-          require(IERC721(_tokenAddress).getApproved(_tokenID) == address(this) , "Approval not granted.");
-         require(!isActiveOnSale[_tokenAddress][_tokenID] , "item already on sales"); 
-         acceptShitPont( _tokenID); 
+         require(shitPonkNft.ownerOf(_tokenID) == _msgSender() , "not Token Owner");
+          require(shitPonkNft.getApproved(_tokenID) == address(this) , "Approval not granted.");
+         require(!isActiveOnSale[_tokenID] , "item already on sales"); 
+         acceptShitPonk( _tokenID); 
         
         uint256 salesID = itemsForSaleList.length + 1;
         ItemForSale storage newItemForSale = itemsForSale[salesID];
@@ -456,7 +456,7 @@ pragma solidity ^0.8.2;
         newItemForSale.auctioned = _auctioned;
         newItemForSale.isSold = false;
         itemsForSaleList.push(salesID);
-        isActiveOnSale[_tokenAddress][_tokenID] = true;
+        isActiveOnSale[_tokenID] = true;
         emit itemAddedToSales(_msgSender() , salesID ,  _askingPrice ,  _auctioned );
         return salesID;
     }
@@ -464,17 +464,17 @@ pragma solidity ^0.8.2;
     function buyItem(uint256 saleID , uint256 amount ) public payable activSales(saleID) {
         require(!itemsForSale[saleID].auctioned , "auctionable sales dont allow outright purchase, place a bid");
         require(amount >= itemsForSale[saleID].askingPrice , "amount below asking price");
-        require(processedPayment(saleID , amount) , "insuficient balance");
+        require(processedPayment( amount) , "insuficient balance");
          ItemForSale storage currentSaleItem =  itemsForSale[saleID];
          if(fees > 0 && !isExcludedFromFees[currentSaleItem.owner]){
-        amount = deductFees(saleID , amount);  
+        amount = deductFees( amount);  
          }
          //send BFT to buyer
          sendShitPonk( currentSaleItem.tokenID , msg.sender);
          //pay owner
          payoutUser(currentSaleItem.owner  , amount);
          currentSaleItem.isSold = true;
-         isActiveOnSale[currentSaleItem.tokenAddress][currentSaleItem.tokenID] = false;
+         isActiveOnSale[currentSaleItem.tokenID] = false;
          
          emit itemSold( _msgSender() , currentSaleItem.owner ,  saleID ,  amount);
         
@@ -483,7 +483,7 @@ pragma solidity ^0.8.2;
 
     function placeBID(uint256 saleID , uint256 amount ) public payable activSales(saleID){
         require(itemsForSale[saleID].auctioned , "not an auctionable sale, purchasse outrightly");
-        require(processedPayment(saleID , amount) , "insuficient balance");
+        require(processedPayment(amount) , "insuficient balance");
         
         //check for top up
         if(itemsForSale[saleID].bids[_msgSender()].isActive){
@@ -522,13 +522,13 @@ pragma solidity ^0.8.2;
          uint256 payoutAmount  = currentSaleItem.winningBid.amount;
           currentSaleItem.bids[currentSaleItem.winningBid.bidder].isActive = false; 
          if(fees > 0 && !isExcludedFromFees[currentSaleItem.owner]){
-          payoutAmount = deductFees(saleID , payoutAmount);  
+          payoutAmount = deductFees( payoutAmount);  
          }
          payoutUser(currentSaleItem.owner , payoutAmount);
          
          refundActiveBidders(saleID);
          currentSaleItem.isSold = true;
-         isActiveOnSale[currentSaleItem.tokenAddress][currentSaleItem.tokenID] = false;
+         isActiveOnSale[currentSaleItem.tokenID] = false;
           emit itemSold( currentSaleItem.owner , currentSaleItem.winningBid.bidder ,  saleID ,  currentSaleItem.winningBid.amount);
         
     }
@@ -542,7 +542,7 @@ pragma solidity ^0.8.2;
          if(currentSaleItem.auctioned && currentSaleItem.bidders.length > 0){
              refundActiveBidders(saleID);
          }
-         isActiveOnSale[currentSaleItem.tokenAddress][currentSaleItem.tokenID] = false;
+         isActiveOnSale[currentSaleItem.tokenID] = false;
     }
     // function used to refund bidders(expcept winningBid) after a completed sales
     function refundActiveBidders(uint256 saleID) internal {
@@ -561,13 +561,13 @@ pragma solidity ^0.8.2;
     // fxn used to accept nft from sellers
      function acceptShitPonk(uint256 _dtokenID) private {
         
-        NFTtoken.safeTransferFrom(_msgSender(), address(this) , _dtokenID  );
+        shitPonkNft.safeTransferFrom(_msgSender(), address(this) , _dtokenID  );
     
     }
     // fxn used to transfer NFT to users
     function sendShitPonk(uint256 _dtokenID , address recipient) private {
        
-        NFTtoken.safeTransferFrom(address(this),  recipient , _dtokenID);
+        shitPonkNft.safeTransferFrom(address(this),  recipient , _dtokenID);
     }
     //internal method used for handling external payments
     function payoutUser(address payable recipient , uint256 amount) private{
@@ -579,7 +579,7 @@ pragma solidity ^0.8.2;
    
    
     // internal fxn used to process incoming payments 
-    function processedPayment(uint256 saleID , uint256 amount ) internal returns (bool) {
+    function processedPayment( uint256 amount ) internal returns (bool) {
        if(msg.value >= amount ) return true;
                return false; 
             
@@ -594,13 +594,10 @@ pragma solidity ^0.8.2;
           }
     }
     // internal fxn for deducting and remitting fees after a sale
-    function deductFees(uint256 saleID , uint256 amount) internal returns (uint256) {
-        ItemForSale storage currentSaleItem =  itemsForSale[saleID];
-         paymentMethod storage currentPaymentMethod = paymentMethods[currentSaleItem.acceptedPaymentMethod];
-         
-         if(currentPaymentMethod.fees > 0){
-          uint256 fees_to_deduct = amount * currentPaymentMethod.fees  / 1000;
-          currentPaymentMethod.feeBalance += fees_to_deduct;
+    function deductFees( uint256 amount) internal returns (uint256) {
+        
+         if(fees > 0){
+          uint256 fees_to_deduct = amount * fees  / 1000;
           payoutUser(feeRemitanceAddress ,  fees_to_deduct) ;
           return amount - fees_to_deduct;
           
@@ -609,7 +606,7 @@ pragma solidity ^0.8.2;
          }
     }
       
-    }
+    
     //this fxn is used to update the fee remitance address it default to the owner on creation.
     function feeRemitanceAddressUpdate(address payable _feeRemitanceAddress) public onlyOwner {
         require(_feeRemitanceAddress != address(0) , "cant make address 0 fee remitance address");

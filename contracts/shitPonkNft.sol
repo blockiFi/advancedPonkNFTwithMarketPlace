@@ -1,3 +1,4 @@
+
 pragma solidity ^0.8.0;
 
 /*
@@ -549,10 +550,10 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
     string private _symbol;
 
     // Mapping from token ID to owner address
-    mapping(uint256 => address) private _owners;
+    mapping(uint256 => address)  _owners;
 
     // Mapping owner address to token count
-    mapping(address => uint256) private _balances;
+    mapping(address => uint256)  _balances;
 
     // Mapping from token ID to approved address
     mapping(uint256 => address) private _tokenApprovals;
@@ -1052,11 +1053,11 @@ contract shitPonk is ERC721 , Ownable {
   
     uint256 totalAddedFromAttribute;
      struct attributeData {
-         bytes32 name;
+         string name;
          uint256 totalCount;
          uint256 usedCount;
      }
-     uint256 attributeCount 103;          
+     uint256 attributeCount = 103;          
      mapping( uint256 => attributeData) public attributes;
       mapping( uint256 => bool)  isSetAttribute;
     struct previousOwner {
@@ -1065,6 +1066,7 @@ contract shitPonk is ERC721 , Ownable {
         uint256 endTime;
         bool  isSet;
     }
+    
     struct ponk {
         uint256 id;
         address creator;
@@ -1082,112 +1084,122 @@ contract shitPonk is ERC721 , Ownable {
    constructor () ERC721("SHIT PONT NFT" , "SHITPONK"){}
    
       modifier onlyMinter() {
-        require( isMinter[_msgSender()] || owner() == _msgSender() || isWhiteListed[_msgSender()], " caller has no minting right!!!");
+        require( isMinter[_msgSender()] || owner() == _msgSender() , " caller has no minting right!!!");
         _;
     }
    
-    function addAttribute(uint256 id , uint256 TotalCount , string name) onlyMinter{
+    function addAttribute(uint256 id , uint256 TotalCount , string memory name) public onlyMinter{
         require(id <= attributeCount, "invalid ID");
-        require( (totalAddedFromAttribute + totalCount) <= totalSupply, "Count would Exceed supply");
+        require( (totalAddedFromAttribute + TotalCount) <= totalSupply, "Count would Exceed supply");
         require(!isSetAttribute[id] ,"attribute ID already Added");
         totalAddedFromAttribute += TotalCount;
-        attributes[id] = attributeData(name , totalCount , 0);
+        attributes[id] = attributeData(name , TotalCount , 0);
         isSetAttribute[id] = true;
     }
-    function getattributeName(uint256 id) public returns (bytes32){
+    function getattributeName(uint256 id) public view returns (string memory){
         require(id <= attributeCount, "invalid ID");
          require(isSetAttribute[id] ,"attribute not yet set");
          return attributes[id].name;
     }
 
-    function mintPunk(string memory uri , uint256[] attributes) public onlyMinter returns (uint256) {
+    function mintPunk(string memory uri , uint256[] memory _attributes) public onlyMinter returns (uint256) {
+        require(attributesAvailable(_attributes) , "Please ensure to provide valid attributes");
         _ponkIDs.increment();
         require( _ponkIDs.current() <= totalSupply , "Max Supply Reached");
         uint256 ponkID = _ponkIDs.current();
-        _safeMint(msg.sender , newItemID);
-        ponk  newshitponk =  shitPonks[ponkID];
+        _safeMint(msg.sender , ponkID);
+        ponk storage  newshitponk =  shitPonks[ponkID];
         newshitponk.id =  ponkID;
         newshitponk.creator =  _msgSender();
         newshitponk.uri = uri;
-        newshitponk.attributes =attributes;
+        newshitponk.attributes =_attributes;
         newshitponk.CurrentOwnerstartTime = block.timestamp;
         return ponkID;
     }
-    
+    function attributesAvailable(uint256[] memory _attributes) private returns(bool){
+        for(uint256 i ; i < _attributes.length ; i++){
+            uint256 attributeID = _attributes[i];
+            if(!isSetAttribute[attributeID])return false;
+            if(attributes[attributeID].usedCount >= attributes[attributeID].totalCount)return false;
+            attributes[attributeID].usedCount++;
+            
+        }
+        return true;
+    }
      function currentPontSupply() public view returns(uint256){
          return _ponkIDs.current();
      }
-    function previousPonkOwners(uint256 ponkID) public view returns(address[]){
-         require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+    function previousPonkOwners(uint256 ponkID) public view returns(address[] memory){
+         require(_exists(ponkID), "ERC721Metadata: URI query for nonexistent token");
          return shitPonks[ponkID].ownershipRecords;
      }
-     function previousPonkOwnerRecord(uint256 ponkID , uint256 previousOwnerIndex) public view returns(previousOwner){
-         require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+     function previousPonkOwnerRecord(uint256 ponkID , uint256 previousOwnerIndex) public view returns(previousOwner memory){
+         require(_exists(ponkID), "ERC721Metadata: URI query for nonexistent token");
          require(previousOwnerIndex < shitPonks[ponkID].ownershipRecords.length  , "invalid previousOwnerIndex");
          return shitPonks[ponkID].ownershipRecordData[previousOwnerIndex];
      }
-     function punkAttributes(uint256 ponkID) public view returns (uint256[]){
-          require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+     function punkAttributes(uint256 ponkID) public view returns (uint256[] memory){
+          require(_exists(ponkID), "ERC721Metadata: URI query for nonexistent token");
           return shitPonks[ponkID].attributes;
      }
 
     function _transfer(
         address from,
         address to,
-        uint256 tokenId
-    ) internal virtual  override {
-       require(ERC721.ownerOf(tokenId) == from, "ERC721: transfer of token that is not own");
+        uint256 ponkID
+    ) internal virtual   override {
+       require(ERC721.ownerOf(ponkID) == from, "ERC721: transfer of token that is not own");
         require(to != address(0), "ERC721: transfer to the zero address");
 
-        _beforeTokenTransfer(from, to, tokenId);
+        _beforeTokenTransfer(from, to, ponkID);
 
         // Clear approvals from the previous owner
-        _approve(address(0), tokenId);
+        _approve(address(0), ponkID);
 
         _balances[from] -= 1;
         _balances[to] += 1;
-        _owners[tokenId] = to;
+       _owners[ponkID] = to;
         
 
-        ponk currentPonk = shitPonks[ponkID];
+        ponk storage currentPonk = shitPonks[ponkID];
         
         uint256 ownershipIndex = currentPonk.ownershipRecords.length;
-        previousOwner newPreviousOwner = currentPonk.ownershipRecordData[ownershipIndex];
+        previousOwner storage newPreviousOwner = currentPonk.ownershipRecordData[ownershipIndex];
         newPreviousOwner.userAddress = from;
-        newPreviousOwner.startTime = currentPonk.startTime;
+        newPreviousOwner.startTime = currentPonk.CurrentOwnerstartTime;
         newPreviousOwner.endTime = block.timestamp;
         newPreviousOwner.isSet = true;
 
-        currentPonk.ownershipRecords.push(from);
-         currentPonk.startTime =  block.timestamp;;
+          currentPonk.ownershipRecords.push(from);
+          currentPonk.CurrentOwnerstartTime =  block.timestamp;
        
 
-        emit Transfer(from, to, tokenId);  
+        emit Transfer(from, to, ponkID);  
     }
     /**
      * @dev See {IERC721Metadata-tokenURI}.
      */
-    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+    function tokenURI(uint256 ponkID) public view virtual override returns (string memory) {
+        require(_exists(ponkID), "ERC721Metadata: URI query for nonexistent token");
 
-        return Items[tokenId].uri;
+        return shitPonks[ponkID].uri;
     }
 
-    function tokenCreator(uint256 tokenId) public view virtual  returns (address) {
-        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
-        return Items[tokenId].creator;
+    function tokenCreator(uint256 ponkID) public view virtual  returns (address) {
+        require(_exists(ponkID), "ERC721Metadata: URI query for nonexistent token");
+        return shitPonks[ponkID].creator;
     }
     
     
    function addMinter(address MinterAddress) public onlyOwner {
         require(MinterAddress != address(0), " Minter Address is the zero address");
-        require( !isMinter[MinterAddress]), " Already a minter");
-       isMinter[MinterAddress] = true;
+        require( !isMinter[MinterAddress], " Already a minter");
+        isMinter[MinterAddress] = true;
        
    }
    function removeMinter(address MinterAddress) public onlyOwner {
         require(MinterAddress != address(0), " Minter Address is the zero address");
-         require( !isMinter[MinterAddress]), " not a minter");
+         require( !isMinter[MinterAddress], " not a minter");
        isMinter[MinterAddress] = false;
        
    }
